@@ -11,6 +11,10 @@ from pptx.enum.shapes import PP_PLACEHOLDER_TYPE
 # read local .env file
 _ = load_dotenv(find_dotenv())
 
+# Ensure the 'outputs' folder exists
+output_dir = os.path.join(os.path.dirname(__file__), "outputs")
+os.makedirs(output_dir, exist_ok=True)
+
 client = OpenAI(api_key=os.environ["OPENAI_API_KEY"], base_url=os.environ["OPENAI_BASE_URL"])
 
 
@@ -128,7 +132,8 @@ def translate_ppt(model_name, input_ppt, target_lang):
 
     # 保存翻译后的PPT
     output_ppt = f"{input_ppt.name.split('.')[0]}_{target_lang}.{input_ppt.name.split('.')[1]}"
-    ppt.save(os.path.join("/tmp", output_ppt))
+    # Save the PowerPoint file
+    ppt.save(os.path.join(output_dir, output_ppt))
     print("Translation completed.")
     return output_ppt
 
@@ -152,4 +157,4 @@ gr.Interface(
     outputs=output_ppt,
     title="PPT Translator",
     description="Upload a PPTX file and specify target language to get a translated PPTX file."
-).launch(server_port=8000)
+).launch(server_port=8080)
