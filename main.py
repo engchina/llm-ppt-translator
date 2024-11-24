@@ -29,7 +29,7 @@ def translate_text(text, target_lang, model_name="gpt-4"):
                     messages=[
                         {"role": "system", "content": "You are a helpful assistant that translates text."},
                         {"role": "user",
-                         "content": f"Translate to {target_lang}, maintain the original tone and style, output translation only: {text}"}
+                         "content": f"Translate to {target_lang}, maintain the original tone and style, DO NOT translate or modify placeholders in the format [PLACEHOLDER_X]. Ensure the placeholders remain in their original positions and with the same quantity as in the original text. Only output the translated text. \n\nText: {text}"}
                     ]
                 )
                 print(f"{text=}")
@@ -61,7 +61,7 @@ def translate_text(text, target_lang, model_name="gpt-4"):
                 chat_request = oci.generative_ai_inference.models.CohereChatRequest()
 
                 chat_request.preamble_override = "You are a helpful assistant that translates text."
-                chat_request.message = f"Translate to {target_lang}, maintain the original tone and style, output translation only: {text}"
+                chat_request.message = f"Translate to {target_lang}, maintain the original tone and style, DO NOT translate or modify placeholders in the format [PLACEHOLDER_X]. Ensure the placeholders remain in their original positions and with the same quantity as in the original text. Only output the translated text. \n\nText: {text}"
 
                 # Set other parameters
                 chat_request.max_tokens = 2000
@@ -95,6 +95,7 @@ def translate_text(text, target_lang, model_name="gpt-4"):
 def translate_ppt(model_name, input_ppt, target_lang):
     # 读取输入PPT
     ppt = Presentation(input_ppt)
+    input_file_name = os.path.basename(input_ppt)
 
     # 遍历每一张幻灯片
     for slide_index, slide in enumerate(ppt.slides, start=1):
@@ -109,33 +110,66 @@ def translate_ppt(model_name, input_ppt, target_lang):
             ]:
                 continue
 
+            # print(f"{shape.has_table=}, {shape.has_text_frame=}")
             if shape.has_table:
                 for row in shape.table.rows:
                     for cell in row.cells:
                         original_text = cell.text_frame
-                        if original_text and original_text.strip():
+                        if original_text and original_text.strip() and len(original_text.strip()) > 0:
                             translated_text = translate_text(original_text, target_lang, model_name)
                             cell.text = translated_text
             elif shape.has_text_frame:
                 for paragraph in shape.text_frame.paragraphs:
-                    for run in paragraph.runs:
-                        original_text = run.text
-                        if original_text and original_text.strip():
-                            translated_text = translate_text(original_text, target_lang, model_name)
-                            run.text = translated_text
+                    # Step 1: 提取段落的完整文本，并为每个 run 添加唯一标记符
+                    original_runs = []
+                    full_text_with_delimiters = ""
+
+                    for idx, run in enumerate(paragraph.runs):
+                        original_text = run.text.strip()
+                        if original_text and len(original_text) > 0:
+                            delimiter = f"[PLACEHOLDER_{idx}]"  # 唯一标记符
+                            full_text_with_delimiters += f"{delimiter}{original_text}"
+                            original_runs.append({"run": run, "delimiter": delimiter})
+
+                    if full_text_with_delimiters == "":
+                        continue
+                    # Step 2: 翻译整个段落（包含标记符）
+                    translated_text_with_delimiters = translate_text(full_text_with_delimiters, target_lang, model_name)
+
+                    # Step 3: 根据标记符分割翻译结果，并写回每个 run
+                    for item in original_runs:
+                        delimiter = item["delimiter"]
+                        run = item["run"]
+
+                        # 找到标记符的位置，并提取对应翻译文本
+                        start_idx = translated_text_with_delimiters.find(delimiter)
+                        if start_idx != -1:
+                            end_idx = start_idx + len(delimiter)
+                            # 提取翻译后的内容，去掉标记符
+                            translated_run_text = translated_text_with_delimiters[end_idx:].split("[PLACEHOLDER_", 1)[0]
+                            run.text = translated_run_text
+
+                    # for run in paragraph.runs:
+                    #     original_text = run.text
+                    #     if original_text and original_text.strip():
+                    #         translated_text = translate_text(original_text, target_lang, model_name)
+                    #         run.text = translated_text
 
         if slide.has_notes_slide:
             original_text = slide.notes_slide.notes_text_frame.text
-            if original_text and original_text.strip():
+            if original_text and original_text.strip() and len(original_text.strip()) > 0:
                 translated_text = translate_text(original_text, target_lang, model_name)
                 slide.notes_slide.notes_text_frame.text = translated_text
 
     # 保存翻译后的PPT
-    output_ppt = f"{input_ppt.name.split('.')[0]}_{target_lang}.{input_ppt.name.split('.')[1]}"
+    output_file_name = f"{input_file_name.rsplit('.', 1)[0]}_{target_lang}.{input_file_name.rsplit('.', 1)[-1]}"
+
     # Save the PowerPoint file
-    ppt.save(os.path.join(output_dir, output_ppt))
+    output_file_path = os.path.join(output_dir, output_file_name)
+    print(f"{output_file_path=}")
+    ppt.save(output_file_path)
     print("Translation completed.")
-    return output_ppt
+    return output_file_path
 
 
 model_type = gr.Radio(
