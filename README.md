@@ -18,3 +18,13 @@ conda activate llm-ppt-translator
 pip install -r requirements.txt
 # pip list --format=freeze > requirements.txt
 ```
+
+## Run
+
+```
+python main.py
+```
+
+## Use
+
+Open [http://127.0.0.1:8000](http://127.0.0.1:8000)

@@ -152,4 +152,4 @@ gr.Interface(
     outputs=output_ppt,
     title="PPT Translator",
     description="Upload a PPTX file and specify target language to get a translated PPTX file."
-).launch()
+).launch(server_port=8000)
