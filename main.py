@@ -1,4 +1,5 @@
 import os
+import time
 
 import gradio as gr
 import oci
@@ -14,68 +15,87 @@ client = OpenAI(api_key=os.environ["OPENAI_API_KEY"], base_url=os.environ["OPENA
 
 
 def translate_text(text, target_lang, model_name="gpt-4"):
+    max_attempts = 5  # 最大尝试次数
+
     if model_name == "gpt-4":
-        completion = client.chat.completions.create(
-            model=os.environ["OPENAI_MODEL_NAME"],
-            messages=[
-                {"role": "system", "content": "You are a helpful assistant that translates text."},
-                {"role": "user",
-                 "content": f"Translate to {target_lang}, maintain the original tone and style, output translation only: {text}"}
-            ]
-        )
-        # print(f"{text=}")
-        # print(f"translated: {completion.choices[0].message.content}")
-        # print(f"------------")
-        return completion.choices[0].message.content
+        for attempt in range(max_attempts):
+            try:
+                completion = client.chat.completions.create(
+                    model=os.environ["OPENAI_MODEL_NAME"],
+                    messages=[
+                        {"role": "system", "content": "You are a helpful assistant that translates text."},
+                        {"role": "user",
+                         "content": f"Translate to {target_lang}, maintain the original tone and style, output translation only: {text}"}
+                    ]
+                )
+                print(f"{text=}")
+                print(f"translated: {completion.choices[0].message.content}\n")
+                return completion.choices[0].message.content
+            except Exception as e:
+                if attempt < max_attempts - 1:
+                    print(f"Attempt {attempt + 1} failed with error: {str(e)}. Retrying...")
+                    time.sleep(1)
+                else:
+                    print(f"All {max_attempts} attempts failed with error: {str(e)}")
+                    return text
     else:
-        # Initialize OCI GenAI client
-        config = oci.config.from_file('~/.oci/config', os.environ.get("CONFIG_PROFILE"))
-        endpoint = "https://inference.generativeai.us-chicago-1.oci.oraclecloud.com"
+        for attempt in range(max_attempts):
+            try:
+                # Initialize OCI GenAI client
+                config = oci.config.from_file('~/.oci/config', os.environ.get("CONFIG_PROFILE"))
+                endpoint = "https://inference.generativeai.us-chicago-1.oci.oraclecloud.com"
 
-        generative_ai_inference_client = oci.generative_ai_inference.GenerativeAiInferenceClient(
-            config=config,
-            service_endpoint=endpoint,
-            retry_strategy=oci.retry.NoneRetryStrategy(),
-            timeout=(10, 240)
-        )
+                generative_ai_inference_client = oci.generative_ai_inference.GenerativeAiInferenceClient(
+                    config=config,
+                    service_endpoint=endpoint,
+                    retry_strategy=oci.retry.NoneRetryStrategy(),
+                    timeout=(10, 240)
+                )
 
-        # Prepare chat request
-        chat_detail = oci.generative_ai_inference.models.ChatDetails()
-        chat_request = oci.generative_ai_inference.models.CohereChatRequest()
+                # Prepare chat request
+                chat_detail = oci.generative_ai_inference.models.ChatDetails()
+                chat_request = oci.generative_ai_inference.models.CohereChatRequest()
 
-        chat_request.preamble_override = "You are a helpful assistant that translates text."
-        chat_request.message = f"Translate to {target_lang}, maintain the original tone and style, output translation only: {text}"
+                chat_request.preamble_override = "You are a helpful assistant that translates text."
+                chat_request.message = f"Translate to {target_lang}, maintain the original tone and style, output translation only: {text}"
 
-        # Set other parameters
-        chat_request.max_tokens = 2000
-        chat_request.temperature = 0
-        chat_request.frequency_penalty = 0
-        chat_request.top_p = 0.75
-        chat_request.top_k = 0
-        chat_request.is_stream = False
+                # Set other parameters
+                chat_request.max_tokens = 2000
+                chat_request.temperature = 0
+                chat_request.frequency_penalty = 0
+                chat_request.top_p = 0.75
+                chat_request.top_k = 0
+                chat_request.is_stream = False
 
-        chat_detail.serving_mode = oci.generative_ai_inference.models.OnDemandServingMode(
-            model_id=model_name
-        )
-        chat_detail.chat_request = chat_request
-        chat_detail.compartment_id = os.environ.get("COMPARTMENT_ID")
+                chat_detail.serving_mode = oci.generative_ai_inference.models.OnDemandServingMode(
+                    model_id=model_name
+                )
+                chat_detail.chat_request = chat_request
+                chat_detail.compartment_id = os.environ.get("COMPARTMENT_ID")
 
-        # Make the API call
-        chat_response = generative_ai_inference_client.chat(chat_detail)
+                # Make the API call
+                chat_response = generative_ai_inference_client.chat(chat_detail)
 
-        print(f"{text=}")
-        print(f"translated: {chat_response.data.chat_response.text}")
-        print(f"------------")
-        return chat_response.data.chat_response.text
+                print(f"{text=}")
+                print(f"translated: {chat_response.data.chat_response.text}\n")
+                return chat_response.data.chat_response.text
+            except Exception as e:
+                if attempt < max_attempts - 1:
+                    print(f"Attempt {attempt + 1} failed with error: {str(e)}. Retrying...")
+                    time.sleep(1)
+                else:
+                    print(f"All {max_attempts} attempts failed with error: {str(e)}")
+                    return text
 
 
 def translate_ppt(model_name, input_ppt, target_lang):
     # 读取输入PPT
-    presentation = Presentation(input_ppt)
+    ppt = Presentation(input_ppt)
 
     # 遍历每一张幻灯片
-    for slide_index, slide in enumerate(presentation.slides, start=1):
-        print(f'Translate slide {slide_index}/{len(presentation.slides)}')
+    for slide_index, slide in enumerate(ppt.slides, start=1):
+        print(f'Translate slide {slide_index}/{len(ppt.slides)}')
+        print('-------------------------------------------')
         for shape in slide.shapes:
             # 跳过页脚部分
             if shape.is_placeholder and shape.placeholder_format.type in [
@@ -89,23 +109,27 @@ def translate_ppt(model_name, input_ppt, target_lang):
                 for row in shape.table.rows:
                     for cell in row.cells:
                         original_text = cell.text_frame
-                        translated_text = translate_text(original_text, target_lang, model_name)
-                        cell.text = translated_text
+                        if original_text and original_text.strip():
+                            translated_text = translate_text(original_text, target_lang, model_name)
+                            cell.text = translated_text
             elif shape.has_text_frame:
                 for paragraph in shape.text_frame.paragraphs:
                     for run in paragraph.runs:
                         original_text = run.text
-                        translated_text = translate_text(original_text, target_lang, model_name)
-                        run.text = translated_text
+                        if original_text and original_text.strip():
+                            translated_text = translate_text(original_text, target_lang, model_name)
+                            run.text = translated_text
 
         if slide.has_notes_slide:
-            original_text = slide.notes_slide.notes_text_frame
-            translated_text = translate_text(original_text, target_lang, model_name)
-            slide.notes_slide.notes_text_frame.text = translated_text
+            original_text = slide.notes_slide.notes_text_frame.text
+            if original_text and original_text.strip():
+                translated_text = translate_text(original_text, target_lang, model_name)
+                slide.notes_slide.notes_text_frame.text = translated_text
 
     # 保存翻译后的PPT
-    output_ppt = "translated_ppt.pptx"
-    presentation.save(output_ppt)
+    output_ppt = f"{input_ppt.name.split('.')[0]}_{target_lang}.{input_ppt.name.split('.')[1]}"
+    ppt.save(os.path.join("/tmp", output_ppt))
+    print("Translation completed.")
     return output_ppt
 
 

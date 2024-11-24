@@ -1,5 +1,12 @@
 # LLM PPT Translator
 
+
+## Prepare
+
+```
+mkdir /tmp
+```
+
 ## Install
 
 ```
