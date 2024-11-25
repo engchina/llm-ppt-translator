@@ -26,10 +26,27 @@ def translate_text(text, target_lang, model_name="gpt-4"):
             try:
                 completion = client.chat.completions.create(
                     model=os.environ["OPENAI_MODEL_NAME"],
+                    # messages=[
+                    #     {"role": "system", "content": "You are a helpful assistant that translates text."},
+                    #     {"role": "user",
+                    #      "content": f"Translate to {target_lang}, maintain the original tone and style, DO NOT translate or modify placeholders in the format [PLACEHOLDER_X]. Ensure the placeholders remain in their original positions and with the same quantity as in the original text. Only output the translated text. \n\nText: {text}"}
+                    # ]
                     messages=[
-                        {"role": "system", "content": "You are a helpful assistant that translates text."},
+                        {"role": "system",
+                         "content": "You are a translation assistant specialized in maintaining the concise and professional style often used in presentation slides. Your task is to translate text while preserving placeholders and respecting language-specific style conventions."},
                         {"role": "user",
-                         "content": f"Translate to {target_lang}, maintain the original tone and style, DO NOT translate or modify placeholders in the format [PLACEHOLDER_X]. Ensure the placeholders remain in their original positions and with the same quantity as in the original text. Only output the translated text. \n\nText: {text}"}
+                         "content": f"""
+                             Translate the text below into {target_lang}, adhering to the following rules:
+                             1. Keep the original tone and style, ensuring the translation is concise and suitable for presentation slides.
+                             2. Avoid overly formal or verbose expressions. For example:
+                                - In Japanese, avoid 'です' and 'ます' unless absolutely necessary.
+                                - In Chinese, use straightforward and professional wording.
+                                - In English, prioritize brevity and clarity.
+                             3. Do not translate or modify placeholders in the format [PLACEHOLDER_X]. Ensure placeholders remain in their original positions and with the same quantity as in the original text.
+                             4. Only output the translated text without explanations or extra comments.
+            
+                             Text: {text}
+                         """}
                     ]
                 )
                 print(f"{text=}")
@@ -60,8 +77,21 @@ def translate_text(text, target_lang, model_name="gpt-4"):
                 chat_detail = oci.generative_ai_inference.models.ChatDetails()
                 chat_request = oci.generative_ai_inference.models.CohereChatRequest()
 
-                chat_request.preamble_override = "You are a helpful assistant that translates text."
-                chat_request.message = f"Translate to {target_lang}, maintain the original tone and style, DO NOT translate or modify placeholders in the format [PLACEHOLDER_X]. Ensure the placeholders remain in their original positions and with the same quantity as in the original text. Only output the translated text. \n\nText: {text}"
+                # chat_request.preamble_override = "You are a helpful assistant that translates text."
+                # chat_request.message = f"Translate to {target_lang}, maintain the original tone and style, DO NOT translate or modify placeholders in the format [PLACEHOLDER_X]. Ensure the placeholders remain in their original positions and with the same quantity as in the original text. Only output the translated text. \n\nText: {text}"
+                chat_request.preamble_override = "You are a translation assistant specialized in maintaining the concise and professional style often used in presentation slides. Your task is to translate text while preserving placeholders and respecting language-specific style conventions."
+                chat_request.message = f"""
+                    Translate the text below into {target_lang}, adhering to the following rules:
+                    1. Keep the original tone and style, ensuring the translation is concise and suitable for presentation slides.
+                    2. Avoid overly formal or verbose expressions. For example:
+                       - In Japanese, avoid 'です' and 'ます' unless absolutely necessary.
+                       - In Chinese, use straightforward and professional wording.
+                       - In English, prioritize brevity and clarity.
+                    3. Do not translate or modify placeholders in the format [PLACEHOLDER_X]. Ensure placeholders remain in their original positions and with the same quantity as in the original text.
+                    4. Only output the translated text without explanations or extra comments.
+
+                    Text: {text}
+                """
 
                 # Set other parameters
                 chat_request.max_tokens = 2000
@@ -110,14 +140,16 @@ def translate_ppt(model_name, input_ppt, target_lang):
             ]:
                 continue
 
+            # print(f"{shape.shape_type=}")
             # print(f"{shape.has_table=}, {shape.has_text_frame=}")
             if shape.has_table:
                 for row in shape.table.rows:
                     for cell in row.cells:
-                        original_text = cell.text_frame
+                        original_text = cell.text_frame.text
                         if original_text and original_text.strip() and len(original_text.strip()) > 0:
                             translated_text = translate_text(original_text, target_lang, model_name)
-                            cell.text = translated_text
+                            cell.text_frame.text = translated_text
+                            # 处理 SmartArt
             elif shape.has_text_frame:
                 for paragraph in shape.text_frame.paragraphs:
                     # Step 1: 提取段落的完整文本，并为每个 run 添加唯一标记符
