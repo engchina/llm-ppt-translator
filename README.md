@@ -53,6 +53,10 @@ Open [http://127.0.0.1:8080](http://127.0.0.1:8080)
 
 - Not support SmartART
 
+## Welcome to WeChat
+
+![微信图片_20241126082444](images/微信图片_20241126082444.jpg)
+
 ## Translated Result Samples
 
 ![image-20241126081952034](images/image-20241126081952034.png)
@@ -73,8 +77,11 @@ Open [http://127.0.0.1:8080](http://127.0.0.1:8080)
 
 ![image-20241126082157871](images/image-20241126082157871.png)
 
-![image-20241126082214393](images/image-20241126082214393.png)
+![image-20241126083706873](images/image-20241126083706873.png)
+
+
 
 ![image-20241126082226906](images/image-20241126082226906.png)
 
-![image-20241126082239412](images/image-20241126082239412.png)
+![image-20241126083728314](images/image-20241126083728314.png)
+

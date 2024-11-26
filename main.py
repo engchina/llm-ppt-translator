@@ -1,4 +1,5 @@
 import os
+import re
 import time
 
 import gradio as gr
@@ -147,6 +148,9 @@ def translate_ppt(model_name, input_ppt, target_lang):
                     for cell in row.cells:
                         original_text = cell.text_frame.text
                         if original_text and original_text.strip() and len(original_text.strip()) > 0:
+                            # 判断是否为数字（包括整数、负数、小数）
+                            if re.match(r'^-?\d+\.?\d*$', original_text.strip()):
+                                continue
                             translated_text = translate_text(original_text, target_lang, model_name)
                             cell.text_frame.text = translated_text
                             # 处理 SmartArt
@@ -163,7 +167,10 @@ def translate_ppt(model_name, input_ppt, target_lang):
                             full_text_with_delimiters += f"{delimiter}{original_text}"
                             original_runs.append({"run": run, "delimiter": delimiter})
 
-                    if full_text_with_delimiters == "":
+                    if full_text_with_delimiters == "" or full_text_with_delimiters.strip() == "":
+                        continue
+                    # 判断是否为数字（包括整数、负数、小数）
+                    if re.match(r'^-?\d+\.?\d*$', full_text_with_delimiters.strip()):
                         continue
                     # Step 2: 翻译整个段落（包含标记符）
                     translated_text_with_delimiters = translate_text(full_text_with_delimiters, target_lang, model_name)
@@ -181,15 +188,12 @@ def translate_ppt(model_name, input_ppt, target_lang):
                             translated_run_text = translated_text_with_delimiters[end_idx:].split("[PLACEHOLDER_", 1)[0]
                             run.text = translated_run_text
 
-                    # for run in paragraph.runs:
-                    #     original_text = run.text
-                    #     if original_text and original_text.strip():
-                    #         translated_text = translate_text(original_text, target_lang, model_name)
-                    #         run.text = translated_text
-
         if slide.has_notes_slide:
             original_text = slide.notes_slide.notes_text_frame.text
             if original_text and original_text.strip() and len(original_text.strip()) > 0:
+                # 判断是否为数字（包括整数、负数、小数）
+                if re.match(r'^-?\d+\.?\d*$', original_text.strip()):
+                    continue
                 translated_text = translate_text(original_text, target_lang, model_name)
                 slide.notes_slide.notes_text_frame.text = translated_text
 
@@ -222,5 +226,6 @@ gr.Interface(
     inputs=[model_type, input_ppt, target_lang],
     outputs=output_ppt,
     title="PPT Translator",
-    description="Upload a PPTX file and specify target language to get a translated PPTX file."
+    description="Upload a PPTX file and specify target language to get a translated PPTX file.",
+    flagging_mode="never",
 ).launch(server_port=8080)
